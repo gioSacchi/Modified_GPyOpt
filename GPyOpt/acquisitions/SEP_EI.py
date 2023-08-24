@@ -20,6 +20,7 @@ class AcquisitionSepEI(AcquisitionBase):
     :param cost_withGradients: function that provides the evaluation cost and its gradients
     :param jitter: jitter to avoid numerical issues
     :param g_inv: inverse of the link function g (use is not implemented yet)
+    :param normalizer: normalizer of the model outputs
 
     """
 
