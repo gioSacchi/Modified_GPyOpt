@@ -12,7 +12,14 @@ class AcquisitionSepEI(AcquisitionBase):
     :param model: GPyOpt class of model
     :param space: GPyOpt class of domain
     :param optimizer: optimizer of the acquisition. Should be a GPyOpt optimizer
+    :param objective_function: function to optimize, takes input (X, model(X))
+    :param distance_function: function to compute distance between points
+    :param current_point: 'starting point', used to compute distance
+    :param desired_output: desired output of the objective function
+    :param lam: lambda parameter of the acquisition function
     :param cost_withGradients: function that provides the evaluation cost and its gradients
+    :param jitter: jitter to avoid numerical issues
+    :param g_inv: inverse of the link function g (use is not implemented yet)
 
     """
 
@@ -20,7 +27,7 @@ class AcquisitionSepEI(AcquisitionBase):
     analytical_gradient_prediction = False
 
     
-    def __init__(self, model, space, optimizer, objective_function, distance_function, current_point, desired_output, lam, cost_withGradients=None, jitter = 0, g_inv = None, **kwargs):
+    def __init__(self, model, space, optimizer, objective_function, distance_function, desired_output, lam, cost_withGradients=None, jitter = 0, g_inv = None, **kwargs):
         self.optimizer = optimizer
         super(AcquisitionSepEI, self).__init__(model, space, optimizer)
         if cost_withGradients == None:
@@ -30,25 +37,29 @@ class AcquisitionSepEI(AcquisitionBase):
         self.jitter = jitter
         self.objective_function = objective_function
         self.distance_function = distance_function
-        self.current_point = current_point
         self.desired_output = desired_output
         self.lam = lam
+        self.g_inv = g_inv
         self.neg_tol = 1e-10
+        self.normalizer = None
+
 
     def _compute_optimal(self):
-        model_values = self.model.predict(self.model.X)[0]
+        model_values = self.model.predict(self.model.model.X)[0]
+        if self.normalizer is not None:
+            model_values = self.normalizer.denormalize(model_values)
         # TODO: check if this is correct, why not self.model.Y ?
-        print('checking if this is correct, why not self.model.Y ?')
-        print('self.model.Y', self.model.Y, self.model.Y.shape)
-        print('model_values', model_values, model_values.shape)
-        print('log-diff', np.log(self.model.Y - model_values))
-        objective_values = self.objective_function(self.model.X, model_values)
+        # print('checking if this is correct, why not self.model.Y ?')
+        # print('self.model.Y', self.model.model.Y, self.model.model.Y.shape)
+        # print('model_values', model_values, model_values.shape)
+        # print('log-diff', np.log(self.model.model.Y - model_values))
+        objective_values = self.objective_function(self.model.model.X, model_values)
         optimal_value = np.min(objective_values)
         return optimal_value
 
     def _compute_acq(self, x):
         # Expected improvement acquisition function
-        dist = self.distance_function(x, self.current_point).reshape(-1, 1)
+        dist = self.distance_function(x).reshape(-1, 1)
         opt = self._compute_optimal()
         f_acqu_x = np.zeros(dist.shape)
         idx = np.where(dist < opt)[0]
@@ -65,6 +76,11 @@ class AcquisitionSepEI(AcquisitionBase):
             pass # TODO: implement this using g_inv
             
         mu, std = self.model.predict(x[idx]) # used to be clip, byt GPy does already clip
+        
+        if self.normalizer is not None:
+            mu = self.normalizer.denormalize(mu)
+            std = self.normalizer.denormalize_std(std)
+
         mu = mu.reshape(-1, 1)
         std = std.reshape(-1, 1)
 

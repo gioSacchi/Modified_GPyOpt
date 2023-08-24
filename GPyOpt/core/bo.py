@@ -8,7 +8,7 @@ import time
 import csv
 import logging
 
-from ..util.general import best_value, normalize
+from ..util.general import best_value, normalize, Normalize_SEP
 from ..util.duplicate_manager import DuplicateManager
 from ..core.errors import InvalidConfigError
 from ..core.task.cost import CostModel
@@ -156,7 +156,6 @@ class BO(object):
 
             # --- Evaluate *f* in X, augment Y and update cost function (if needed)
             self.evaluate_objective()
-            # TODO: update in here
 
             # --- Update current evaluation time and function evaluations
             self.cum_time = time.time() - self.time_zero
@@ -168,7 +167,6 @@ class BO(object):
 
         # --- Stop messages and execution time
         self._compute_results()
-        # TODO: update in here
 
         # --- Print the desired result in files
         if self.report_file is not None:
@@ -214,7 +212,7 @@ class BO(object):
         if not self.separated:
                 Y = self.Y
         else:
-            Y = self.Y[:,0].reshape(-1, 1) # separate function values are in the first column
+            Y = self.Y[:,1].reshape(-1, 1) # separate function values are in the first column and objective in the second thus second
 
         self.Y_best = best_value(Y)
         self.x_opt = self.X[np.argmin(Y),:]
@@ -259,16 +257,25 @@ class BO(object):
             X_inmodel = self.space.unzip_inputs(self.X)
             
             if not self.separated:
-                Y = self.Y
+                # Y_inmodel is the output that goes into the model
+                if self.normalize_Y:
+                    Y_inmodel = normalize(self.Y, normalization_type)
+                else:
+                    Y_inmodel = self.Y
+                self.model.updateModel(X_inmodel, Y_inmodel, None, None)
             else:
-                Y = self.Y[:,0].reshape(-1, 1) # separate function values are in the first column
-
-            # Y_inmodel is the output that goes into the model
-            if self.normalize_Y:
-                Y_inmodel = normalize(Y, normalization_type)
-            else:
-                Y_inmodel = Y
-            self.model.updateModel(X_inmodel, Y_inmodel, None, None)
+                """handle separated case, in particular use first column for model and use special normalizer for acquisition"""
+                Y = self.Y[:,0].reshape(-1, 1) # separate function values are in the first column which we want to model
+                if self.normalize_Y:
+                    normalizer = Normalize_SEP(normalization_type)
+                    Y_inmodel = normalizer.normalize_and_store(Y)
+                    try:
+                        self.acquisition.normalizer = normalizer
+                    except AttributeError:
+                        raise AttributeError("The acquisition function does not support separate normalization")
+                else:
+                    Y_inmodel = Y
+                self.model.updateModel(X_inmodel, Y_inmodel, None, None)
 
         # Save parameters of the model
         self._save_model_parameter_values()

@@ -104,10 +104,11 @@ class BayesianOptimization(BO):
         if f is not None and 'separated' not in kwargs:
             self.f = self._sign(f)
             self.objective = SingleObjective(self.f, self.batch_size,self.objective_name)
-            """create another statement to cover separated with new objective class, e.g. SeparatedObjective
-                alt.
-                modify it to allow an objective function with multiple outputs, i.e. the model and objective function"""
         elif 'separated' in kwargs and f is not None:
+            # check kwargs objective_funtion equals f
+            if kwargs['objective_function'] != f:
+                raise InvalidConfigError("objective_function in kwargs does not equal f")
+            self.f = self._sign(f)
             self.objective = SeparatedObjective(self.f, kwargs['separated'], self.batch_size, self.objective_name)
         else:
             self.f = None

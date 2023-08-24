@@ -232,3 +232,78 @@ def normalize(Y, normalization_type='stats'):
         raise ValueError('Unknown normalization type: {}'.format(normalization_type))
 
     return Y_norm
+
+class Normalize_SEP():
+    """Class to handle normalizations for seprated bayesian optimization."""
+
+    def __init__(self, Y_mean = None, normalization_type='stats', Y_std = None, Y_range = None):
+        self.normalization_type = normalization_type
+        self.Y_mean = Y_mean
+        self.Y_std = Y_std
+        self.Y_range = Y_range
+    
+    def store_stats(self, Y):
+        self.Y_mean = Y.mean()
+        self.Y_std = Y.std()
+        self.Y_range = np.ptp(Y)
+
+    def normalize(self, Y):
+        Y = np.asarray(Y, dtype=float)
+
+        if np.max(Y.shape) != Y.size:
+            raise NotImplementedError('Only 1-dimensional arrays are supported.')
+        
+        if self.normalization_type == 'stats':
+            Y_norm = Y - Y.mean()
+            std = Y.std()
+            if std > 0:
+                Y_norm /= std
+        elif self.normalization_type == 'maxmin':
+            Y_norm = Y - Y.min()
+            y_range = np.ptp(Y)
+            if y_range > 0:
+                Y_norm /= y_range
+                # A range of [-1, 1] is more natural for a zero-mean GP
+                Y_norm = 2 * (Y_norm - 0.5)
+        else:
+            raise ValueError('Unknown normalization type: {}'.format(self.normalization_type))
+        
+        return Y_norm
+
+    def normalize_and_store(self, Y):
+        self.store_stats(Y)
+        return self.normalize(Y)
+    
+    def denormalize(self, Y_norm):
+        Y_norm = np.asarray(Y_norm, dtype=float)
+
+        if np.max(Y_norm.shape) != Y_norm.size:
+            raise NotImplementedError('Only 1-dimensional arrays are supported.')
+
+        if self.normalization_type == 'stats':
+            Y = Y_norm * self.Y_std + self.Y_mean
+        elif self.normalization_type == 'maxmin':
+            Y = Y_norm / 2 + 0.5
+            Y *= self.Y_range
+            Y += self.Y_min
+        else:
+            raise ValueError('Unknown normalization type: {}'.format(self.normalization_type))
+        
+        return Y
+    
+    def denormalize_std(self, Y_norm_std):
+        Y_norm_std = np.asarray(Y_norm_std, dtype=float)
+
+        if np.max(Y_norm_std.shape) != Y_norm_std.size:
+            raise NotImplementedError('Only 1-dimensional arrays are supported.')
+
+        if self.normalization_type == 'stats':
+            Y_std = Y_norm_std * self.Y_std
+        elif self.normalization_type == 'maxmin':
+            # Not sure about this
+            Y_std = Y_norm_std / 2
+            Y_std *= self.Y_range
+        else:
+            raise ValueError('Unknown normalization type: {}'.format(self.normalization_type))
+        
+        return Y_std

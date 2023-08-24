@@ -3,7 +3,7 @@ from ..models.rfmodel import RFModel
 from ..models.warpedgpmodel import WarpedGPModel
 from ..models.input_warped_gpmodel import InputWarpedGPModel
 from ..core.evaluators import Sequential, RandomBatch, LocalPenalization, ThompsonBatch
-from ..acquisitions import AcquisitionEI, AcquisitionMPI, AcquisitionLCB, AcquisitionEI_MCMC, AcquisitionMPI_MCMC, AcquisitionLCB_MCMC, AcquisitionLP
+from ..acquisitions import AcquisitionEI, AcquisitionMPI, AcquisitionLCB, AcquisitionEI_MCMC, AcquisitionMPI_MCMC, AcquisitionLCB_MCMC, AcquisitionLP, AcquisitionSepEI
 from ..core.errors import InvalidConfigError
 
 class ArgumentsManager(object):
@@ -70,6 +70,9 @@ class ArgumentsManager(object):
 
         elif acquisition_type =='LCB_MCMC':
             return AcquisitionLCB_MCMC(model, space, acquisition_optimizer, None, acquisition_weight)
+        
+        elif acquisition_type =='SEP_EI':
+            return AcquisitionSepEI(model=model, space=space, optimizer=acquisition_optimizer, objective_function=self.kwargs['objective_function'], distance_function=self.kwargs['distance_function'], desired_output=self.kwargs['desired_output'], lam=self.kwargs['lam'], cost_withGradients=cost_withGradients, jitter=acquisition_jitter)
 
         else:
             raise Exception('Invalid acquisition selected.')

@@ -55,7 +55,9 @@ class AcquisitionBase(object):
         """
         Optimizes the acquisition function (uses a flag from the model to use gradients or not).
         """
-        # TODO: for test without gradients
+        # out = self.optimizer.optimize(f=self.acquisition_function, duplicate_manager=duplicate_manager)
+        # TODO: for test without gradients  
+        # print('optimize acquisition function')      
         if not self.analytical_gradient_acq:
             out = self.optimizer.optimize(f=self.acquisition_function, duplicate_manager=duplicate_manager)
         else:
