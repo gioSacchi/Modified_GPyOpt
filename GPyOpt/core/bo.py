@@ -17,7 +17,7 @@ from ..optimization.acquisition_optimizer import ContextManager
 logger = logging.getLogger(__name__)
 
 try:
-    from ..plotting.plots_bo import plot_acquisition, plot_convergence
+    from ..plotting.plots_bo import plot_acquisition, plot_convergence, naive_plot_process, current_plot
 except ImportError as e:
     logger.warning("Could not import plotting module: {}".format(e))
 
@@ -40,7 +40,7 @@ class BO(object):
     """
 
 
-    def __init__(self, model, space, objective, acquisition, evaluator, X_init, Y_init=None, cost = None, normalize_Y = True, model_update_interval = 1, de_duplication = False, separated = False):
+    def __init__(self, model, space, objective, acquisition, evaluator, X_init, Y_init=None, cost = None, normalize_Y = True, model_update_interval = 1, de_duplication = False, separated = False, distance = None):
         self.model = model
         self.space = space
         self.objective = objective
@@ -57,6 +57,7 @@ class BO(object):
         self.context = None
         self.num_acquisitions = 0
         self.separated = separated
+        self.distance = distance
 
     def suggest_next_locations(self, context = None, pending_X = None, ignored_X = None):
         """
@@ -76,7 +77,7 @@ class BO(object):
 
         return suggested_locations
 
-    def run_optimization(self, max_iter = 0, max_time = np.inf,  eps = 1e-8, context = None, verbosity=False, save_models_parameters= True, report_file = None, evaluations_file = None, models_file=None):
+    def run_optimization(self, max_iter = 0, max_time = np.inf,  eps = 1e-8, context = None, verbosity=False, save_models_parameters= True, report_file = None, evaluations_file = None, models_file=None, plot_freq = None):
         """
         Runs Bayesian Optimization for a number 'max_iter' of iterations (after the initial exploration data)
 
@@ -88,6 +89,7 @@ class BO(object):
         :param report_file: file to which the results of the optimization are saved (default, None).
         :param evaluations_file: file to which the evalations are saved (default, None).
         :param models_file: file to which the model parameters are saved (default, None).
+        :param plot_freq: how often plotting should be made (default, none).
         """
 
         if self.objective is None:
@@ -138,6 +140,7 @@ class BO(object):
 
         # --- Initialize time cost of the evaluations
         while (self.max_time > self.cum_time):
+            print("iteration", self.num_acquisitions)
             # --- Update model
             try:
                 self._update_model(self.normalization_type)
@@ -150,6 +153,10 @@ class BO(object):
 
             self.suggested_sample = self._compute_next_evaluations()
             # TODO: derive gradient of the acquisition function and update - no Y update needed right?
+
+            # plot current state
+            if plot_freq is not None and self.X.shape[0]%plot_freq == 0:
+                self.continuous_plot()
 
             # --- Augment X
             self.X = np.vstack((self.X,self.suggested_sample))
@@ -175,6 +182,18 @@ class BO(object):
             self.save_evaluations(self.evaluations_file)
         if self.models_file is not None:
             self.save_models(self.models_file)
+    
+    def continuous_plot(self):
+        return current_plot(self.acquisition.space.get_bounds(),
+                            self.space.dimensionality,
+                            self.model,
+                            self.X,
+                            self.Y,
+                            self.suggested_sample,
+                            self.acquisition.desired_output,
+                            self.objective.func,
+                            self.objective.separated_function,
+                            self.acquisition)
 
     def _print_convergence(self):
         """
@@ -218,14 +237,27 @@ class BO(object):
         self.x_opt = self.X[np.argmin(Y),:]
         self.fx_opt = np.min(Y)
 
+    def optimal_values(self):
+        # best objective function value is fx_opt
+        # if we doing normal just return this
+        if not self.separated:
+            return self.fx_opt
+        else:
+            # if we are doing separated return touple (fx_opt, inner_function_value)
+            idx = np.where(self.Y[:,1] == self.fx_opt)[0][0]
+            return (self.fx_opt, self.Y[idx,0])
+
     def _distance_last_evaluations(self):
         """
         Computes the distance between the last two evaluations.
         """
-        if self.X.shape[0] < 2:
+        if self.distance is not None:
+            return self.distance(self.X[-1, :], self.X[-2, :])
+        elif self.X.shape[0] < 2:
             # less than 2 evaluations
             return np.inf
-        return np.sqrt(np.sum((self.X[-1, :] - self.X[-2, :]) ** 2))
+        else:
+            return np.sqrt(np.sum((self.X[-1, :] - self.X[-2, :]) ** 2))
 
     def _compute_next_evaluations(self, pending_zipped_X=None, ignored_zipped_X=None):
         """
