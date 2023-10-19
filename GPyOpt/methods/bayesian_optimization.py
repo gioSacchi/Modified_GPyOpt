@@ -178,7 +178,7 @@ class BayesianOptimization(BO):
                                                     model_update_interval  = self.model_update_interval,
                                                     de_duplication         = self.de_duplication,
                                                     separated              = ('separated' in kwargs),
-                                                    distance               = ('distance' in kwargs))
+                                                    distance               = kwargs['distance_function'][1] if ('distance_function' in kwargs) else None)
 
     def _model_chooser(self):
         return self.problem_config.model_creator(self.model_type, self.exact_feval,self.space)
