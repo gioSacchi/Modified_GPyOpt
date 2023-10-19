@@ -6,6 +6,7 @@ from pylab import grid
 import matplotlib.pyplot as plt
 from pylab import savefig
 import pylab
+from ..util.general import Normalize_SEP
 
 
 def plot_acquisition(bounds, input_dim, model, Xdata, Ydata, acquisition_function, suggested_sample,
@@ -146,13 +147,16 @@ def plot_acquisition(bounds, input_dim, model, Xdata, Ydata, acquisition_functio
             plt.show()
 
 
-def plot_convergence(Xdata, best_Y, filename=None):
+def plot_convergence(Xdata, best_Y, distance, filename=None):
     '''
     Plots to evaluate the convergence of standard Bayesian optimization algorithms
     '''
     n = Xdata.shape[0]
     aux = (Xdata[1:n,:]-Xdata[0:n-1,:])**2
-    distances = np.sqrt(aux.sum(axis=1))
+    # distances = np.sqrt(aux.sum(axis=1))
+    distances = []
+    for i in range(n-1):
+        distances.append(distance(Xdata[i,:], Xdata[i+1,:])[0,0])
 
     ## Distances between consecutive x's
     plt.figure(figsize=(10,5))
@@ -174,4 +178,59 @@ def plot_convergence(Xdata, best_Y, filename=None):
     if filename!=None:
         savefig(filename)
     else:
+        plt.show()
+
+def current_plot(bounds, input_dim, model, Xdata, Ydata, next_x, desired, obj_func, inner_function, acquisition_func):
+    if input_dim == 1:
+        x = np.arange(bounds[0][0], bounds[0][1], 0.01).reshape(-1, 1)
+        y = inner_function(x)
+        obj_val = obj_func(x, y)
+        fig = plt.figure(figsize=(10, 10))
+        fig.subplots_adjust(hspace=.5)
+
+        norm = acquisition_func.normalizer
+        mu, std = model.predict(x)
+        mu = norm.denormalize(mu).reshape(-1, 1)
+        std = norm.denormalize_std(std).reshape(-1, 1)
+
+        # plot objective function
+        plt.subplot(1, 3, 1)
+        plt.plot(x, obj_val, 'b-', label=u'Objective function')
+
+        # compute upper and lower of surrogate function
+        upper = mu + 1.96 * std
+        lower = mu - 1.96 * std
+        # upper and lower bounds of objective function
+        obj_desired = obj_func(x, np.ones_like(x)*desired)
+        obj_upper = obj_func(x, upper)
+        obj_lower = obj_func(x, lower)
+        # take into consideration the objective function non monotonicity
+        plot_upper = np.maximum(obj_upper, obj_lower)
+        plot_lower = np.where(np.logical_and(desired < obj_upper, desired > obj_lower), obj_desired, np.minimum(obj_upper, obj_lower))
+        obj_surrogate = obj_func(x, mu)
+
+        # plot surrogate function
+        plt.plot(x, obj_surrogate, 'r-', label=u'Surrogate objective function')
+        plt.fill_between(x.ravel(), plot_lower.ravel(), plot_upper.ravel(), alpha=.2, fc='b', ec='None', label='95% C. I.')
+
+        # plot samples
+        plt.plot(Xdata, Ydata[:, 1], 'kx', mew=3, label=u'Samples')
+        # plot optimum
+        opt = np.argmin(Ydata[:, 1])
+        plt.plot(Xdata[opt], Ydata[opt, 1], 'k*', mew=3, ms=10, label=u'Optimum')
+
+        # plot inner function
+        plt.subplot(1, 3, 2)
+        plt.plot(x, y, 'g-', label=u'Real inner function')
+        plt.fill_between(x.ravel(), upper.ravel(), lower.ravel(), alpha=.2, fc='b', ec='None', label='95% C. I.')
+        plt.plot(x, mu, 'r-', label=u'Surrogate inner function')
+        plt.plot(Xdata, Ydata[:, 0], 'kx', mew=3, label=u'Samples')
+
+        # plot acquisition function
+        plt.subplot(1, 3, 3)
+        acq_vals = acquisition_func._compute_acq(x)
+        plt.plot(x, acq_vals, 'r-', label=u'Acquisition function')
+        plt.axvline(x=next_x, color='k', label=u'Next sample')
+
+        plt.legend(loc='upper left')
         plt.show()
