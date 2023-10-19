@@ -251,11 +251,12 @@ class BO(object):
         """
         Computes the distance between the last two evaluations.
         """
-        if self.distance is not None:
-            return self.distance(self.X[-1, :], self.X[-2, :])
-        elif self.X.shape[0] < 2:
+    
+        if self.X.shape[0] < 2:
             # less than 2 evaluations
             return np.inf
+        elif self.distance is not None:
+            return self.distance(self.X[-1, :], self.X[-2, :])
         else:
             return np.sqrt(np.sum((self.X[-1, :] - self.X[-2, :]) ** 2))
 
@@ -356,7 +357,7 @@ class BO(object):
             plot 2: Iterations vs. the mean of the current model in the selected sample.
         :param filename: name of the file where the plot is saved
         """
-        return plot_convergence(self.X,self.Y_best,filename)
+        return plot_convergence(self.X,self.Y_best, self.distance,filename)
 
     def get_evaluations(self):
         return self.X.copy(), self.Y.copy()
