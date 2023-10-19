@@ -72,7 +72,7 @@ class ArgumentsManager(object):
             return AcquisitionLCB_MCMC(model, space, acquisition_optimizer, None, acquisition_weight)
         
         elif acquisition_type =='SEP_EI':
-            return AcquisitionSepEI(model=model, space=space, optimizer=acquisition_optimizer, objective_function=self.kwargs['objective_function'], distance_function=self.kwargs['distance_function'], desired_output=self.kwargs['desired_output'], lam=self.kwargs['lam'], cost_withGradients=cost_withGradients, jitter=acquisition_jitter)
+            return AcquisitionSepEI(model=model, space=space, optimizer=acquisition_optimizer, objective_function=self.kwargs['objective_function'], distance_function=self.kwargs['distance_function'][0], desired_output=self.kwargs['desired_output'], lam=self.kwargs['lam'], cost_withGradients=cost_withGradients, jitter=acquisition_jitter)
 
         else:
             raise Exception('Invalid acquisition selected.')
