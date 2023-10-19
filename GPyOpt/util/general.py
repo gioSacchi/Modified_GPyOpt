@@ -307,3 +307,31 @@ class Normalize_SEP():
             raise ValueError('Unknown normalization type: {}'.format(self.normalization_type))
         
         return Y_std
+    
+def reverse_gpyopt_encoding(points, space):
+    """Reverse the one-hot encoding used by GPyOpt.
+    
+    :param points: The points to be decoded.
+    :param space: The space used for the encoding.
+    :return: The decoded points.
+    """
+
+    new_points = np.empty((points.shape[0], len(space)))
+    offset = 0
+    for i, feature in enumerate(space):
+        if feature.type == 'continuous':
+            new_points[:, i] = points[:, (i + offset)]
+        elif feature.type == 'discrete':
+            new_points[:, i] = points[:, (i + offset)]
+        elif feature.type == 'categorical':
+            # domain size of the categorical variable
+            cat_size = len(feature.domain)
+            # one-hot encoding
+            one_hot = points[:, (i + offset):(i + offset + cat_size)]
+            # reverse, index of the 1
+            new_points[:, i] = np.argmax(one_hot, axis=1)
+            # update offset
+            offset += cat_size - 1
+        else:
+            raise InvalidConfigError('Unknown feature type {}'.format(feature.type))
+    return new_points
