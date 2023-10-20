@@ -147,16 +147,18 @@ def plot_acquisition(bounds, input_dim, model, Xdata, Ydata, acquisition_functio
             plt.show()
 
 
-def plot_convergence(Xdata, best_Y, distance, filename=None):
+def plot_convergence(Xdata, best_Y, distance=None, filename=None):
     '''
     Plots to evaluate the convergence of standard Bayesian optimization algorithms
     '''
     n = Xdata.shape[0]
-    aux = (Xdata[1:n,:]-Xdata[0:n-1,:])**2
-    # distances = np.sqrt(aux.sum(axis=1))
-    distances = []
-    for i in range(n-1):
-        distances.append(distance(Xdata[i,:], Xdata[i+1,:])[0,0])
+    if distance==None:
+        aux = (Xdata[1:n,:]-Xdata[0:n-1,:])**2
+        distances = np.sqrt(aux.sum(axis=1))
+    else:
+        distances = []
+        for i in range(n-1):
+            distances.append(distance(Xdata[i,:], Xdata[i+1,:])[0,0])
 
     ## Distances between consecutive x's
     plt.figure(figsize=(10,5))
