@@ -21,6 +21,7 @@ class AcquisitionSepEI(AcquisitionBase):
     :param jitter: jitter to avoid numerical issues
     :param g_inv: inverse of the link function g (use is not implemented yet)
     :param normalizer: normalizer of the model outputs
+    :param opt_val: optimal value of the objective function, default is None, otherwise (n_points, opt_value)
 
     """
 
@@ -43,47 +44,46 @@ class AcquisitionSepEI(AcquisitionBase):
         self.g_inv = g_inv
         self.neg_tol = 1e-10
         self.normalizer = None
-
+        self.opt_val = None
 
     def _compute_optimal(self, one_hot=False):
-        model_values = self.model.predict(self.model.model.X)[0]
-        if self.normalizer is not None:
-            model_values = self.normalizer.denormalize(model_values)
-        # TODO: check if this is correct, why not self.model.Y ?
-        # print('checking if this is correct, why not self.model.Y ?')
-        # print('self.model.Y', self.model.model.Y, self.model.model.Y.shape)
-        # print('model_values', model_values, model_values.shape)
-        # print('log-diff', np.log(self.model.model.Y - model_values))
-        if not one_hot:
-            X = self.model.model.X
+        # if no stored optimal value or the number of points has changed, recompute
+        if self.opt_val is None or self.opt_val[0] != len(self.model.model.X):
+            # model_values = self.model.predict(self.model.model.X)[0]
+            model_values = self.model.model.Y
+            if self.normalizer is not None:
+                model_values = self.normalizer.denormalize(model_values)
+            
+            if not one_hot:
+                X = self.model.model.X
+            else:
+                # The x values have been transfomed with GPyOpt one-hot encoding
+                X = reverse_gpyopt_encoding(self.model.model.X, self.space.space)
+            opt = np.min(self.objective_function(X, model_values))
+            self.opt_val = (len(self.model.model.X), opt)
+            return opt
         else:
-            # The x values have been transfomed with GPyOpt one-hot encoding
-            X = reverse_gpyopt_encoding(self.model.model.X, self.space.space)
-        objective_values = self.objective_function(X, model_values)
-        optimal_value = np.min(objective_values)
-        return optimal_value
+            return self.opt_val[1]
 
     def _compute_acq(self, x):
         # Expected improvement acquisition function
-        try:
+        if x.shape[1] == len(self.space.space):
+            # No one-hot encoding
             dist = self.distance_function(x).reshape(-1, 1)
             opt = self._compute_optimal()
-        except:
-            # check if dimensions indicate one-hot encoding of x
-            size_if_one_hot = len(self.space.get_bounds())
-            if x.shape[1] == size_if_one_hot:
-                # The x values have been transfomed with GPyOpt one-hot encoding
-                x_reversed = reverse_gpyopt_encoding(x, self.space.space)
-                dist = self.distance_function(x_reversed).reshape(-1, 1)
-                opt = self._compute_optimal(one_hot=True)
-            else:
-                raise ValueError('x has wrong dimensions for distance function')
+        elif x.shape[1] == len(self.space.get_bounds()):
+            # The x values have been transfomed with GPyOpt one-hot encoding
+            x_reversed = reverse_gpyopt_encoding(x, self.space.space)
+            dist = self.distance_function(x_reversed).reshape(-1, 1)
+            opt = self._compute_optimal(one_hot=True)
+        else:
+            raise ValueError('x has wrong dimensions for distance function')
         
         f_acqu_x = np.zeros(dist.shape)
         idx = np.where(dist < opt)[0]
         if len(idx) == 0:
             return f_acqu_x
-        
+
         quat = (opt - self.jitter - dist[idx]) / self.lam
         if self.g_inv is None: # standard Watcher et al. CF formulation
             # ingore warning about invalid value encountered in sqrt
@@ -92,25 +92,25 @@ class AcquisitionSepEI(AcquisitionBase):
                 LB = self.desired_output - np.sqrt(quat)
         else:
             pass # TODO: implement this using g_inv
-            
+
         mu, std = self.model.predict(x[idx]) # used to be clip, byt GPy does already clip
-        
+
         if self.normalizer is not None:
             mu = self.normalizer.denormalize(mu)
             std = self.normalizer.denormalize_std(std)
 
         mu = mu.reshape(-1, 1)
         std = std.reshape(-1, 1)
-
+        
         f1 = opt - self.jitter - dist[idx] - self.lam*((self.desired_output - mu)**2 + std**2)
         f2 = self.lam*std*(mu + UB - 2*self.desired_output)
         f3 = self.lam*std*(2*self.desired_output - mu - LB)
-
+        
         arg_UB = (UB - mu) / std
         arg_LB = (LB - mu) / std
-
+        
         f_acqu_x[idx] = f1*(norm.cdf(arg_UB)-norm.cdf(arg_LB)) + f2*norm.pdf(arg_UB) + f3*norm.pdf(arg_LB)
-
+        
         if np.any(f_acqu_x < 0):
             # check if the problem is due to numerical error
             if np.all(np.abs(f_acqu_x[f_acqu_x<0]) < self.neg_tol):
@@ -118,7 +118,6 @@ class AcquisitionSepEI(AcquisitionBase):
                 print('Numerical error in EI, setting to 0')
             else:
                 raise ValueError('ei must be non-negative')
-                                    
         return f_acqu_x
     
     def _compute_acq_withGradients(self, x):
