@@ -17,7 +17,7 @@ from ..optimization.acquisition_optimizer import ContextManager
 logger = logging.getLogger(__name__)
 
 try:
-    from ..plotting.plots_bo import plot_acquisition, plot_convergence, naive_plot_process, current_plot
+    from ..plotting.plots_bo import plot_acquisition, plot_convergence, current_plot
 except ImportError as e:
     logger.warning("Could not import plotting module: {}".format(e))
 
