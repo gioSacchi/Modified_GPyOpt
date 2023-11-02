@@ -140,7 +140,8 @@ class BO(object):
 
         # --- Initialize time cost of the evaluations
         while (self.max_time > self.cum_time):
-            print("iteration", self.num_acquisitions)
+            if self.num_acquisitions%10 == 0:
+                print("iteration", self.num_acquisitions)
             # --- Update model
             try:
                 self._update_model(self.normalization_type)
