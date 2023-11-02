@@ -4,10 +4,10 @@ from .latin_design import LatinDesign
 from .random_design import RandomDesign
 from .sobol_design import SobolDesign
 
-def initial_design(design_name, space, init_points_count):
+def initial_design(design_name, space, init_points_count, context):
     design = None
     if design_name == 'random':
-        design = RandomDesign(space)
+        design = RandomDesign(space, context)
     elif design_name == 'sobol':
         design = SobolDesign(space)
     elif design_name == 'grid':
