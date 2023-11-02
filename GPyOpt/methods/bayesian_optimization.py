@@ -91,8 +91,7 @@ class BayesianOptimization(BO):
         # --- CHOOSE design space
         self.constraints = constraints
         self.domain = domain
-        self.context = context
-        self.space = Design_space(self.domain, self.constraints, self.context)
+        self.space = Design_space(self.domain, self.constraints)
 
         # --- CHOOSE objective function
         self.maximize = maximize
@@ -123,6 +122,7 @@ class BayesianOptimization(BO):
         self.Y = Y
         self.initial_design_type  = initial_design_type
         self.initial_design_numdata = initial_design_numdata
+        self.context = context
         self._init_design_chooser()
 
         # --- CHOOSE the model type. If an instance of a GPyOpt model is passed (possibly user defined), it is used.
@@ -201,7 +201,7 @@ class BayesianOptimization(BO):
 
         # Case 1:
         if self.X is None:
-            self.X = initial_design(self.initial_design_type, self.space, self.initial_design_numdata)
+            self.X = initial_design(self.initial_design_type, self.space, self.initial_design_numdata, self.context)
             self.Y, _ = self.objective.evaluate(self.X)
         # Case 2
         elif self.X is not None and self.Y is None:
